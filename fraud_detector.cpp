@@ -181,6 +181,14 @@ int main() {
     auto duration = duration_cast<milliseconds>(end_time - start_time);
 
     cout << "Sequential DFS Fradulent Cycles Detected: " << cycles.size() << endl;
+
+    // Display Sequential Cycles Detected
+    //for (const auto& cycle : cycles) {
+    //    for (const auto& node : cycle) {
+    //        cout << node << " -> ";
+    //    }
+    //    cout << endl; // Print each cycle on a new line
+    //}
     cout << "Time taken: " << duration.count() << " ms" << endl;
 
     // Time parallel cycle detection
@@ -190,6 +198,15 @@ int main() {
     duration = duration_cast<milliseconds>(end_time - start_time);
 
     cout << "Parallel DFS Fradulent Cycles Detected: " << parallel_cycles.size() << endl;
+
+    // Display Parallel Cycles Detected
+    //for (const auto& cycle : parallel_cycles) {
+    //    for (const auto& node : cycle) {
+    //        cout << node << " -> ";
+    //    }
+    //    cout << endl; // Print each cycle on a new line
+    //}
+
     cout << "Time taken: " << duration.count() << " ms" << endl;
 
     return 0;
