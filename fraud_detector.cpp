@@ -5,6 +5,8 @@
 #include <vector>
 #include <set>
 #include <string>
+#include <omp.h>
+#include <algorithm>
 #include <thread>
 #include <mutex>
 #include <chrono>
@@ -116,7 +118,7 @@ void parallel_dfs_worker(const vector<string>& nodes,
 
 
 // Parallel cycle detection function
-vector<vector<string>> parallel_fraudulent_cycles(const Graph& g, int num_threads = 4) {
+vector<vector<string>> threading_fraudulent_cycles(const Graph& g, int num_threads = 4) {
     const auto& adjList = g.get_adj_list(); // Get the adjacency list representation of the graph
     vector<string> nodes;
     for (const auto& pair : adjList) {
@@ -154,6 +156,46 @@ vector<vector<string>> parallel_fraudulent_cycles(const Graph& g, int num_thread
 
 
 
+// OpenMP Parallel DFS function
+vector<vector<string>> openMP_dfs(const Graph& g, int num_threads) {
+    const auto& adjList = g.get_adj_list();
+    vector<string> nodes;
+    for (const auto& pair : adjList) {
+        nodes.push_back(pair.first);
+    }
+
+    vector<set<vector<string>>> thread_local_cycles(num_threads);  // Thread-local cycle storage
+    vector<unordered_set<string>> thread_local_visited(num_threads); // Thread-local visited sets
+
+    omp_set_num_threads(num_threads);
+
+    #pragma omp parallel
+    {
+        int thread_id = omp_get_thread_num();
+        unordered_set<string> local_recStack;
+        unordered_map<string, string> local_parent;
+
+        #pragma omp for schedule(dynamic)
+        for (size_t i = 0; i < nodes.size(); ++i) {
+            if (thread_local_visited[thread_id].find(nodes[i]) == thread_local_visited[thread_id].end()) {
+                dfs(nodes[i], adjList, thread_local_visited[thread_id], local_recStack, local_parent, thread_local_cycles[thread_id]);
+            }
+        }
+    }
+
+    // Post-processing: Merge thread-local cycles into a global set
+    set<vector<string>> global_cycles;
+    for (const auto& thread_cycles : thread_local_cycles) {
+        for (const auto& cycle : thread_cycles) {
+            global_cycles.insert(cycle);  // Normalize and deduplicate automatically via `set`
+        }
+    }
+
+    return vector<vector<string>>(global_cycles.begin(), global_cycles.end());
+}
+
+
+
 int main() {
     Graph g;
 
@@ -181,33 +223,23 @@ int main() {
     auto duration = duration_cast<milliseconds>(end_time - start_time);
 
     cout << "Sequential DFS Fradulent Cycles Detected: " << cycles.size() << endl;
-
-    // Display Sequential Cycles Detected
-    //for (const auto& cycle : cycles) {
-    //    for (const auto& node : cycle) {
-    //        cout << node << " -> ";
-    //    }
-    //    cout << endl; // Print each cycle on a new line
-    //}
     cout << "Time taken: " << duration.count() << " ms" << endl;
 
-    // Time parallel cycle detection
+    // Threading parallel cycle detection
     start_time = high_resolution_clock::now();
-    vector<vector<string>> parallel_cycles = parallel_fraudulent_cycles(g, 4); // Using 4 threads
+    vector<vector<string>> parallel_cycles = threading_fraudulent_cycles(g, 4); // Using 4 threads
     end_time = high_resolution_clock::now();
     duration = duration_cast<milliseconds>(end_time - start_time);
-
     cout << "Parallel DFS Fradulent Cycles Detected: " << parallel_cycles.size() << endl;
-
-    // Display Parallel Cycles Detected
-    //for (const auto& cycle : parallel_cycles) {
-    //    for (const auto& node : cycle) {
-    //        cout << node << " -> ";
-    //    }
-    //    cout << endl; // Print each cycle on a new line
-    //}
-
     cout << "Time taken: " << duration.count() << " ms" << endl;
+
+    // OpenMP parallel cycle detection
+    start_time = high_resolution_clock::now();
+    auto parallel_cycles = openMP_dfs(g, 4);
+    end_time = high_resolution_clock::now();
+    auto parallel_duration = duration_cast<milliseconds>(end_time - start_time);
+    cout << "OpenMP DFS Cycles Detected: " << parallel_cycles.size() << endl;
+    cout << "Time taken: " << parallel_duration.count() << " ms" << endl;
 
     return 0;
 }
